@@ -1,15 +1,20 @@
 #include <SDL.h>
+#include "../../_engine_.h"
 #include "../D2GR/RendererPipeline.h"
 
 
 int main(int argc, char* argv[]) {
 	FLOAT32 vertices[] = {
-		-0.5f, -0.5f, 0.5f,
+		0.f, 0.f, 0.f,
 		1.f, 0.f, 0.f,
 		1.f, 1.f, 0.f
 	};
 	UINT indices[] = {
 		0, 1, 2
+	};
+
+	FLOAT32 color[4] = {
+		1.f, 0.f, 1.f, 1.f
 	};
 
 	DBufferPipeline::VertexBufferResource vbuffer;
@@ -27,9 +32,19 @@ int main(int argc, char* argv[]) {
 	ibuffer.AllocData = &indices;
 	ibuffer.IndicesCount = 3;
 
+	DBufferPipeline::UniformBufferResource ubuffer;
+	ubuffer.LayoutCount = 1;
+	ubuffer.UsageMode = DBufferPipeline::Unchanged;
+	ubuffer.ByteSize = sizeof(color);
+	ubuffer.AllocData = &color;
+	
+	ubuffer.UniformBlocks[0].BlockName = "VertexBlock";
+	ubuffer.UniformBlocks[0].Location = 0;
+
 	DBufferPipeline::GeometryBufferResource geoBuffer;
 	geoBuffer.VertexBuffer = &vbuffer;
 	geoBuffer.IndexBuffer = &ibuffer;
+	geoBuffer.UniformBuffer = &ubuffer;
 
 	DGeometryPipeline::GeometryShaderResource sh;
 	sh.VertexSource = R"(#version 140
@@ -44,20 +59,24 @@ in vec3 NORMAL;
 in vec3 TANGENT;
 in vec2 TEXCOORD;
 
-uniform vec4 C_COLOR;
+uniform VertexBlock {
+	vec4 COLOR;
+};
 
 //in vec4 VColor;
 
 //varying vec4 fColor;
 
-//out vec4 fColor;
+out vec4 fColor;
+
 //out vec2 fCoord;
 
 void main()
 {
 	gl_Position = vec4(POSITION, 1.0);
 	
-	//fColor = VColor;
+	fColor = COLOR;
+	
 	//fCoord = VTexCoord;
 }
 )";
@@ -67,7 +86,7 @@ void main()
 precision mediump float;
 #endif
 
-//in vec4 fColor;
+in vec4 fColor;
 //in vec2 fCoord;
 
 //uniform sampler2D ScreenTexture;
@@ -76,7 +95,7 @@ out vec4 FragColor;
 
 void main()
 {
-	FragColor = vec4(1.f, 0.f, 0.f, 1.f);
+	FragColor = fColor;
 })";
 
 	DGeometryPipeline::StaticGeometryMaterial mat;
@@ -91,6 +110,7 @@ void main()
 	SDL_Event event;
 	SDL_GLContext context;
 
+	std::cout << "D2GR version " << _D2GR_VERSION_NAME_ << std::endl;
 
 	SDL_Init(SDL_INIT_EVERYTHING);
 
@@ -101,7 +121,11 @@ void main()
 	gladLoadGLLoader(SDL_GL_GetProcAddress);
 
 	DBufferPipeline::GeometryBufferInitialize(&geoBuffer);
-	DGeometryPipeline::StaticGeometryMaterialInitialize(instance.OverrideMaterial);
+	
+	DGeometryPipeline::StaticGeometryMaterialInitialize(&mat);
+	
+	DGeometryPipeline::StaticGeometryInstanceInitialize(&instance);
+	
 	DRendererPipeline::RendererInitialize();
 
 	bool running = true;

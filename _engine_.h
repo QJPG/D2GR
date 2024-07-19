@@ -1,0 +1,2 @@
+#define _D2GR_VERSION_NAME_ "dev_07_19_24"
+#define _D2GR_VERSION_CODE_ 071924

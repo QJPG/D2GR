@@ -67,10 +67,29 @@ public:
 		GLuint index_id;
 #endif
 	};
+
+	struct UniformBlock {
+		UINT		Location = 0;
+		const char* BlockName = nullptr;
+
+#ifdef _GLES3
+		GLuint block_id;
+#endif
+	};
+
+	struct UniformBufferResource : BufferResource {
+		UniformBlock UniformBlocks[1024];
+		UINT LayoutCount = 0;
+
+#ifdef _GLES3
+		GLuint uniform_id;
+#endif
+	};
 	
 	struct GeometryBufferResource {
-		VertexBufferResource*	VertexBuffer = nullptr;
-		IndexBufferResource*	IndexBuffer = nullptr;
+		VertexBufferResource*		VertexBuffer = nullptr;
+		IndexBufferResource*		IndexBuffer = nullptr;
+		UniformBufferResource*		UniformBuffer = nullptr;
 	};
 
 	struct FrameBufferResource {
@@ -80,6 +99,7 @@ public:
 	static inline void GeometryBufferInitialize(GeometryBufferResource* geometryBuffer) {
 		if (!geometryBuffer->VertexBuffer) throw "Vertex Buffer is NullPtr!";
 		if (!geometryBuffer->IndexBuffer)  throw "Index Buffer is NullPtr!";
+		//if (!geometryBuffer->UniformBuffer)  throw "Uniform Buffer is NullPtr!";
 
 #ifdef _GLES3
 		glGenVertexArrays	(1, &geometryBuffer->VertexBuffer->arrayb_id);
@@ -102,6 +122,10 @@ public:
 				break;
 		};
 
+		glBindVertexArray	(geometryBuffer->VertexBuffer->arrayb_id);
+		glBindBuffer		(GL_ARRAY_BUFFER, geometryBuffer->VertexBuffer->vertex_id);
+		glBufferData		(GL_ARRAY_BUFFER, geometryBuffer->VertexBuffer->ByteSize, geometryBuffer->VertexBuffer->AllocData, buffer_usage);
+
 		switch (geometryBuffer->IndexBuffer->UsageMode) {
 			case BufferUsageMode::Changed:
 				buffer_usage = GL_DYNAMIC_DRAW;
@@ -115,10 +139,6 @@ public:
 				buffer_usage = GL_STREAM_DRAW;
 				break;
 		};
-
-		glBindVertexArray	(geometryBuffer->VertexBuffer->arrayb_id);
-		glBindBuffer		(GL_ARRAY_BUFFER, geometryBuffer->VertexBuffer->vertex_id);
-		glBufferData		(GL_ARRAY_BUFFER, geometryBuffer->VertexBuffer->ByteSize, geometryBuffer->VertexBuffer->AllocData, buffer_usage);
 
 		glBindBuffer		(GL_ELEMENT_ARRAY_BUFFER, geometryBuffer->IndexBuffer->index_id);
 		glBufferData		(GL_ELEMENT_ARRAY_BUFFER, geometryBuffer->IndexBuffer->ByteSize, geometryBuffer->IndexBuffer->AllocData, buffer_usage);
@@ -163,6 +183,32 @@ public:
 
 		glBindBuffer		(GL_ARRAY_BUFFER, NULL);
 		glBindVertexArray	(NULL);
+
+		/*Uniform Buffer*/
+
+		if (geometryBuffer->UniformBuffer) {
+			glGenBuffers(1, &geometryBuffer->UniformBuffer->uniform_id);
+
+			switch (geometryBuffer->UniformBuffer->UsageMode) {
+				case BufferUsageMode::Changed:
+					buffer_usage = GL_DYNAMIC_DRAW;
+					break;
+
+				case BufferUsageMode::Unchanged:
+					buffer_usage = GL_STATIC_DRAW;
+					break;
+
+				case BufferUsageMode::FastChanged:
+					buffer_usage = GL_STREAM_DRAW;
+					break;
+			};
+
+			glBindBuffer(GL_UNIFORM_BUFFER, geometryBuffer->UniformBuffer->uniform_id);
+			glBufferData(GL_UNIFORM_BUFFER, geometryBuffer->UniformBuffer->LayoutCount * geometryBuffer->UniformBuffer->ByteSize, geometryBuffer->UniformBuffer->AllocData, buffer_usage);
+			glBindBuffer(GL_UNIFORM_BUFFER, NULL);
+
+			glBindBufferRange(GL_UNIFORM_BUFFER, 0, geometryBuffer->UniformBuffer->uniform_id, 0, geometryBuffer->UniformBuffer->LayoutCount * geometryBuffer->UniformBuffer->ByteSize);
+		}
 #endif
 	};
 	
@@ -200,12 +246,25 @@ public:
 		glBindVertexArray(NULL);
 #endif
 	};
+
+	static inline void GeometryBufferCopyDataToUniformBuffer(GeometryBufferResource* gemoetryBuffer, void* data, UINT offset) {
+#ifdef _GLES3
+		glBindBuffer	(GL_UNIFORM_BUFFER, gemoetryBuffer->UniformBuffer->uniform_id);
+		glBufferSubData	(GL_UNIFORM_BUFFER, offset, sizeof(data), data);
+		glBindBuffer	(GL_UNIFORM_BUFFER, NULL);
+#endif
+	};
 	
 	static inline void GeometryBufferDestroy(GeometryBufferResource* geometryBuffer) {
 #ifdef _GLES3
 		glDeleteBuffers			(1, &geometryBuffer->IndexBuffer->index_id);
 		glDeleteBuffers			(1, &geometryBuffer->VertexBuffer->vertex_id);
 		glDeleteVertexArrays	(1, &geometryBuffer->VertexBuffer->arrayb_id);
+
+		if (geometryBuffer->UniformBuffer) {
+			glDeleteBuffers(1, &geometryBuffer->UniformBuffer->uniform_id);
+			geometryBuffer->UniformBuffer = nullptr;
+		}
 
 		geometryBuffer->VertexBuffer = nullptr;
 		geometryBuffer->IndexBuffer = nullptr;

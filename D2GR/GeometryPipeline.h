@@ -19,13 +19,51 @@ public:
 	};
 
 	struct StaticGeometryMaterial : GeometryMaterial {
-		
+		FLOAT32 Color[4];
 	};
 	
 	struct StaticGeometryInstance {
-		DBufferPipeline::GeometryBufferResource* geometryBuffer = nullptr;
-		StaticGeometryMaterial* OverrideMaterial = nullptr;
-		StaticGeometryMaterial* OverlayMaterial = nullptr;
+		DBufferPipeline::GeometryBufferResource*	geometryBuffer = nullptr;
+		StaticGeometryMaterial*						OverrideMaterial = nullptr;
+		StaticGeometryMaterial*						OverlayMaterial = nullptr;
+
+		bool hasValidOverrideMaterial() {
+			return OverrideMaterial && OverrideMaterial->GeometryShader;
+		}
+
+		bool hasValidOverlayMaterial() {
+			return OverlayMaterial && OverlayMaterial->GeometryShader;
+		}
+	};
+
+	static inline void StaticGeometryInstanceInitialize(StaticGeometryInstance* instance) {
+		if (!instance) return;
+		if (!instance->geometryBuffer) return;
+		if (!instance->geometryBuffer->VertexBuffer) return;
+		if (!instance->geometryBuffer->IndexBuffer) return;
+
+
+		if (instance->geometryBuffer->UniformBuffer) {
+			for (size_t i = 0; i < instance->geometryBuffer->UniformBuffer->LayoutCount; i++) {
+				if (instance->hasValidOverrideMaterial()) {
+#ifdef _GLES3
+					instance->geometryBuffer->UniformBuffer->UniformBlocks[i].block_id = glGetUniformBlockIndex(instance->OverrideMaterial->GeometryShader->program_id, instance->geometryBuffer->UniformBuffer->UniformBlocks[i].BlockName);
+
+					glUniformBlockBinding(instance->OverrideMaterial->GeometryShader->program_id, instance->geometryBuffer->UniformBuffer->UniformBlocks[i].Location, 0);
+#endif
+
+				}
+
+				if (instance->hasValidOverlayMaterial()) {
+#ifdef _GLES3
+					instance->geometryBuffer->UniformBuffer->UniformBlocks[i].block_id = glGetUniformBlockIndex(instance->OverlayMaterial->GeometryShader->program_id, instance->geometryBuffer->UniformBuffer->UniformBlocks[i].BlockName);
+
+					glUniformBlockBinding(instance->OverlayMaterial->GeometryShader->program_id, instance->geometryBuffer->UniformBuffer->UniformBlocks[i].Location, 0);
+#endif
+				}
+
+			}
+		}
 	};
 
 	static inline void StaticGeometryInstanceRenderInstance(StaticGeometryInstance* geometryInstance) {
